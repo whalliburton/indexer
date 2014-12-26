@@ -2,6 +2,8 @@
 
 (defvar *index-cache* (make-hash-table :test 'equal))
 
+;; to remove indexes: find . -name .file-index -print0 | xargs -0 rm
+
 (defun ensure-trailing-slash (pathname)
   (let ((name (namestring pathname)))
     (if (string-ends-with name "/")
@@ -31,34 +33,41 @@
            (prin1 files stream))
          (return (append files subdirs)))))
 
+(defun unescape-pathname (pathname)
+  (ppcre:regex-replace-all "\\" (namestring pathname) ""))
+
 (defun sha256-file (pathname)
   (with-timeout-action (5 nil)
-    (first (split-sequence #\space (run-program-to-string "sha256sum" (list (namestring pathname)))))))
+    (first (split-sequence #\space (run-program-to-string "sha256sum" (list (unescape-pathname pathname)))))))
 
 (defun file-size (file)
   (with-open-file (stream file :element-type '(unsigned-byte 8))
     (file-length stream)))
 
 (defun mediainfo (pathname)
-  (iter (for track in
-             (cdddr
-              (fourth
-               (cxml:parse
-                (run-program-to-string "mediainfo" `("--output=XML" ,(namestring pathname)))
-                (cxml-xmls:make-xmls-builder)))))
-        (when (consp track)
-          (destructuring-bind (name params . properties) track
-            (cond
-              ((string= name "track")
-               (collect (append
-                         (list (ksymb (string-upcase (car (assoc-value params "type" :test 'equal)))))
-                         (iter (for prop in properties)
-                               (when (consp prop)
-                                 (collect (cons
-                                           (ksymb (substitute #\- #\_ (string-upcase (first prop))))
-                                           (third prop)))
-                                 )))))
-              (t (warn "Invalid track ~S." track)))))))
+  (let ((name (unescape-pathname pathname)))
+    (iter (for track in
+               (cdddr
+                (fourth
+                 (cxml:parse
+                  (handler-case
+                      (run-program-to-string "mediainfo" `("--output=XML" ,name))
+                    (error (c) (warn "Error in mediainfo ~S." c)
+                      (return-from mediainfo nil)))
+                  (cxml-xmls:make-xmls-builder)))))
+          (when (consp track)
+            (destructuring-bind (name params . properties) track
+              (cond
+                ((string= name "track")
+                 (collect (append
+                           (list (ksymb (string-upcase (car (assoc-value params "type" :test 'equal)))))
+                           (iter (for prop in properties)
+                                 (when (consp prop)
+                                   (collect (cons
+                                             (ksymb (substitute #\- #\_ (string-upcase (first prop))))
+                                             (third prop)))
+                                   )))))
+                (t (warn "Invalid track ~S." track))))))))
 
 (defun index-file (pathname)
   (or
@@ -78,14 +87,15 @@
                (cond
                  ((equal mame "application/pdf")
                   (multiple-value-list (pdf-info pathname)))
-                 ((equalp (pathname-type pathname) "avi") (mediainfo pathname))
-                 ((equalp (pathname-type pathname) "mp3") (mediainfo pathname))))))))))
+                 ((member (pathname-type pathname) '("jpg" "png" "gif" "avi" "mp3" "mp4" "ogg") :test 'string=)
+                  (mediainfo pathname))))))))))
 
 (defun pdf-info (pathname)
-  (let ((raw
+  (let* ((name (unescape-pathname pathname))
+         (raw
           (iter (for line in
                      (handler-case
-                         (run-program-to-string "pdfinfo" (list (namestring pathname)) :split-lines t)
+                         (run-program-to-string "pdfinfo" (list name) :split-lines t)
                        (error (c) (warn "Error in pdfinfo ~S." c))))
                 (when-let (pos (position #\: line))
                   (collect
