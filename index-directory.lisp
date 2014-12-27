@@ -76,7 +76,7 @@
       (list pathname :directory (index-directory pathname)))
      (t
       (setf (gethash (namestring pathname) *index-cache*)
-            (multiple-value-bind (magic mame) (magic pathname)
+            (multiple-value-bind (magic mame) (magic-file (unescape-pathname pathname))
               (list
                pathname
                (file-size pathname)
