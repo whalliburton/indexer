@@ -122,3 +122,11 @@
       (iter (for (k v) in-hashtable types)
             (collect (list k v)))
       #'< :key #'cadr))))
+
+(defun dump-index-cache ()
+  (let ((filename (temporary-file-name)))
+    (with-output-to-file (stream filename)
+      (prin1 (iter (for (k v) in-hashtable *index-cache*)
+                   (collect v))
+             stream))
+    filename))
