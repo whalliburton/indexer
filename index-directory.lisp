@@ -106,3 +106,19 @@
      (car (assoc-value raw "Author" :test 'equal))
      (when-let (string (car (assoc-value raw "Pages" :test 'equal)))
        (parse-integer string)))))
+
+(defun describe-index-cache ()
+  (let ((hash *index-cache*)
+        (types (make-hash-table :test 'equal)))
+    (format t "~S files~%" (hash-table-count hash))
+    (iter (for (k (path size sha mime mime-text info)) in-hashtable hash)
+          (when (null mime)
+            (bugout path))
+          (if (gethash mime types)
+            (incf (gethash mime types))
+            (setf (gethash mime types) 1)))
+    (print-table
+     (sort
+      (iter (for (k v) in-hashtable types)
+            (collect (list k v)))
+      #'< :key #'cadr))))
