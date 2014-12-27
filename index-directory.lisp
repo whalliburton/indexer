@@ -1,6 +1,6 @@
 (in-package :indexer)
 
-(defvar *index-cache* (make-hash-table :test 'equal))
+(defparameter *index-cache* (make-hash-table :test 'equal))
 
 ;; to remove indexes: find . -name .file-index -print0 | xargs -0 rm
 
@@ -16,9 +16,9 @@
 (defun load-directory-index (pathname)
   (let ((index-filename (file-index-name pathname)))
     (when (probe-file index-filename)
-      (iter (for (k v) in (let ((*read-eval* nil))
+      (iter (for el in (let ((*read-eval* nil))
                             (read-from-string (slurp-file index-filename))))
-            (setf (gethash k *index-cache*) v)))))
+            (setf (gethash (namestring (car el)) *index-cache*) el)))))
 
 (defun index-directory (pathname)
   (load-directory-index pathname)
@@ -37,8 +37,7 @@
   (ppcre:regex-replace-all "\\" (namestring pathname) ""))
 
 (defun sha256-file (pathname)
-  (with-timeout-action (5 nil)
-    (first (split-sequence #\space (run-program-to-string "sha256sum" (list (unescape-pathname pathname)))))))
+  (first (split-sequence #\space (run-program-to-string "sha256sum" (list (unescape-pathname pathname))))))
 
 (defun file-size (file)
   (with-open-file (stream file :element-type '(unsigned-byte 8))
