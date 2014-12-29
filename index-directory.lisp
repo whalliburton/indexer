@@ -36,8 +36,8 @@
 (defun unescape-pathname (pathname)
   (ppcre:regex-replace-all "\\" (namestring pathname) ""))
 
-(defun sha256-file (pathname)
-  (first (split-sequence #\space (run-program-to-string "sha256sum" (list (unescape-pathname pathname))))))
+(defun md5sum-file (pathname)
+  (first (split-sequence #\space (run-program-to-string "md5sum" (list (unescape-pathname pathname))))))
 
 (defun file-size (file)
   (with-open-file (stream file :element-type '(unsigned-byte 8))
@@ -80,7 +80,7 @@
               (list
                pathname
                (file-size pathname)
-               (sha256-file pathname)
+               (md5sum-file pathname)
                mame
                magic
                (cond
@@ -111,7 +111,7 @@
   (let ((hash *index-cache*)
         (types (make-hash-table :test 'equal)))
     (format t "~S files~%" (hash-table-count hash))
-    (iter (for (k (path size sha mime mime-text info)) in-hashtable hash)
+    (iter (for (k (path size md5 mime mime-text info)) in-hashtable hash)
           (when (null mime)
             (bugout path))
           (if (gethash mime types)
