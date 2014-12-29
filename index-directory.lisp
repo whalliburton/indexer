@@ -130,3 +130,15 @@
                    (collect v))
              stream))
     filename))
+
+(defun show-index-cache ()
+  (print-table
+   (iter (for (k v) in-hashtable *index-cache*)
+         (destructuring-bind (path size md5 mame mame-text additional) v
+           (when (string= mame "application/pdf")
+             (collect (list (third additional)
+                            (file-namestring path)
+                            ;(first additional)
+                            ; (second additional)
+                            ))))))
+)
